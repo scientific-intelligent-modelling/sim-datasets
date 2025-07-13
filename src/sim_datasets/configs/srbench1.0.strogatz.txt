@@ -1,0 +1,14 @@
+srbench1.0/strogatz/strogatz_bacres1
+srbench1.0/strogatz/strogatz_bacres2
+srbench1.0/strogatz/strogatz_barmag1
+srbench1.0/strogatz/strogatz_barmag2
+srbench1.0/strogatz/strogatz_glider1
+srbench1.0/strogatz/strogatz_glider2
+srbench1.0/strogatz/strogatz_lv1
+srbench1.0/strogatz/strogatz_lv2
+srbench1.0/strogatz/strogatz_predprey1
+srbench1.0/strogatz/strogatz_predprey2
+srbench1.0/strogatz/strogatz_shearflow1
+srbench1.0/strogatz/strogatz_shearflow2
+srbench1.0/strogatz/strogatz_vdp1
+srbench1.0/strogatz/strogatz_vdp2
