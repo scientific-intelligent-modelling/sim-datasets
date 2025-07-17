@@ -1,3 +1,80 @@
+def check_ip_location(proxy: str = "") -> bool:
+    """
+    检查当前IP是否在中国大陆
+    
+    Args:
+        proxy: 代理地址，空字符串表示不使用代理
+        
+    Returns:
+        True表示在大陆，False表示非大陆
+    """
+    import requests
+    
+    # 设置代理
+    proxies = {}
+    if proxy:
+        proxies = {
+            'http': proxy,
+            'https': proxy
+        }
+        print(f"使用代理检测IP位置: {proxy}")
+    
+    try:
+        # 使用多个服务来确保准确性
+        services = [
+            'http://ip-api.com/json/',
+            'https://ipapi.co/json/',
+        ]
+        
+        for service in services:
+            try:
+                response = requests.get(service, proxies=proxies, timeout=10)
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    # 检查不同服务的返回格式
+                    country = None
+                    if 'country' in data:
+                        country = data['country']
+                    elif 'country_name' in data:
+                        country = data['country_name']
+                    
+                    if country:
+                        print(f"检测到IP所在国家: {country}")
+                        return country.lower() in ['china', 'cn', '中国']
+                        
+            except Exception as e:
+                print(f"服务 {service} 检测失败: {e}")
+                continue
+                
+        # 如果所有服务都失败，默认假设在大陆
+        print("IP位置检测失败，默认使用ModelScope")
+        return True
+        
+    except Exception as e:
+        print(f"IP检测过程中发生错误: {e}")
+        return True
+
+
+def auto_select_source(proxy: str = "") -> str:
+    """
+    根据IP位置自动选择下载源
+    
+    Args:
+        proxy: 代理地址，空字符串表示不使用代理
+        
+    Returns:
+        "modelscope" 或 "huggingface"
+    """
+    is_china = check_ip_location(proxy=proxy)
+    if is_china:
+        print("检测到中国IP，使用ModelScope下载源")
+        return "modelscope"
+    else:
+        print("检测到海外IP，使用HuggingFace下载源")
+        return "huggingface"
+
+
 def get_datasets_list(config_name: str) -> list:
     """
     根据数据集名称读取对应的配置文件，返回数据集列表。
@@ -42,13 +119,13 @@ def get_datasets_list(config_name: str) -> list:
         raise ValueError(f"读取配置文件失败 {config_file_path}: {e}")
     
 
-def download_single_dataset(dataset_name: str, source: str = "modelscope", proxy="", cache_dir=None):
+def download_single_dataset(dataset_name: str, source: str = None, proxy="", cache_dir=None):
     """
-    下载单个数据集的所有文件。
+    下载单个数据集的 package.tar.gz 文件，解压后删除压缩包。
     
     Args:
         dataset_name: 数据集名称，格式如 "llm-srbench/bio_pop_growth/BPG0"
-        source: 数据源，支持 "modelscope" 或 "huggingface"
+        source: 数据源，支持 "modelscope" 或 "huggingface"，如果为None则自动根据IP位置选择
         proxy: 代理地址，空字符串表示不使用代理
         cache_dir: 缓存目录，如果为None则使用默认目录
         
@@ -57,6 +134,12 @@ def download_single_dataset(dataset_name: str, source: str = "modelscope", proxy
     """
     import requests
     from pathlib import Path
+    import tarfile
+    import shutil
+    
+    # 如果未指定数据源，自动选择
+    if source is None:
+        source = auto_select_source(proxy=proxy)
     
     source = source.lower()
 
@@ -68,28 +151,17 @@ def download_single_dataset(dataset_name: str, source: str = "modelscope", proxy
             'https': proxy
         }
     
-    # 定义要下载的文件列表
-    files_to_download = [
-        'train.csv',
-        'valid.csv', 
-        'id_test.csv',
-        'ood_test.csv',
-        'metadata.yaml'
-    ]
-    
-    # 如果数据集名称不包含blackbox，则添加formula.py
-    if 'blackbox' not in dataset_name.lower():
-        files_to_download.append('formula.py')
-    
-    # 构建基础URL
+    # 构建 package.tar.gz 的 URL
     if source == 'huggingface':
-        base_url = f"https://huggingface.co/datasets/scientific-intelligent-modelling/sim-datasets/raw/main/{dataset_name}"
+        base_url = f"https://huggingface.co/datasets/scientific-intelligent-modelling/sim-datasets/resolve/main/{dataset_name}"
     else:  # ModelScope
         base_url = f"https://modelscope.cn/datasets/scientific-intelligent-modelling/sim-datasets/resolve/master/{dataset_name}"
     
-    # 下载数据集
-    print(f"从 {source} 下载 {dataset_name}...")
-    
+    tar_filename = 'package.tar.gz'
+    download_url = f"{base_url}/{tar_filename}"
+
+    print(f"从 {source} 下载 {dataset_name} 的 {tar_filename} ...")
+
     dataset_data = {
         'dataset_name': dataset_name,
         'source': source,
@@ -97,74 +169,111 @@ def download_single_dataset(dataset_name: str, source: str = "modelscope", proxy
         'total_size': 0,
         'cache_path': None
     }
-    
+
     # 创建数据集目录，保持原始目录结构
     if cache_dir:
         dataset_dir = cache_dir / Path(dataset_name)
     else:
         dataset_dir = Path.cwd() / ".sim_datasets"  / Path(dataset_name)
-    
     dataset_dir.mkdir(parents=True, exist_ok=True)
     dataset_data['cache_path'] = str(dataset_dir)
-    
-    for filename in files_to_download:
-        download_url = f"{base_url}/{filename}"
-        file_path = dataset_dir / filename
 
-        if not file_path.exists():
-            try:
-                print(f"  下载 {filename}...")
-                response = requests.get(download_url, proxies=proxies, timeout=30)
+    tar_path = dataset_dir / tar_filename
+
+    # 下载 package.tar.gz
+    if not tar_path.exists():
+        try:
+            print(f"  下载 {tar_filename} ...")
+            response = requests.get(download_url, proxies=proxies, timeout=60, stream=True)
+            if response.status_code == 200:
+                with open(tar_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                file_size = tar_path.stat().st_size
                 
-                if response.status_code == 200:
-                    # 直接保存文件到磁盘
-                    with open(file_path, 'w', encoding='utf-8') as f:
-                        f.write(response.text)
-                    
-                    file_size = file_path.stat().st_size
-                    dataset_data['files'][filename] = {
-                        'path': str(file_path),
-                        'size': file_size,
-                        'url': download_url
-                    }
-                    dataset_data['total_size'] += file_size
-                    print(f"  ✅ {filename} 已保存到 {file_path}")
-                else:
-                    print(f"  下载 {filename} 失败: HTTP {response.status_code}")
-                    dataset_data['files'][filename] = {
+                # 验证下载的文件是否为有效的tar.gz文件
+                try:
+                    with tarfile.open(tar_path, 'r:gz') as test_tar:
+                        # 尝试读取文件列表来验证格式
+                        test_tar.getnames()
+                    print(f"  ✅ {tar_filename} 已保存到 {tar_path} (已验证格式)")
+                except tarfile.ReadError:
+                    # 如果不是有效的tar.gz文件，可能是HTML错误页面，删除并报错
+                    tar_path.unlink()
+                    error_msg = f"下载的文件不是有效的tar.gz格式，可能是404错误页面"
+                    print(f"  ❌ {error_msg}")
+                    dataset_data['files'][tar_filename] = {
                         'path': None,
                         'size': 0,
                         'url': download_url,
-                        'error': f"HTTP {response.status_code}"
+                        'error': error_msg
                     }
+                    return dataset_data
                 
-            except Exception as e:
-                print(f"  下载 {filename} 失败: {e}")
-                dataset_data['files'][filename] = {
+                dataset_data['files'][tar_filename] = {
+                    'path': str(tar_path),
+                    'size': file_size,
+                    'url': download_url
+                }
+                dataset_data['total_size'] += file_size
+                print(f"  ✅ {tar_filename} 已保存到 {tar_path}")
+            else:
+                print(f"  下载 {tar_filename} 失败: HTTP {response.status_code}")
+                dataset_data['files'][tar_filename] = {
                     'path': None,
                     'size': 0,
                     'url': download_url,
-                    'error': str(e)
+                    'error': f"HTTP {response.status_code}"
                 }
-        else:
-            print(f"{filename} 已缓存")
-    
+                return dataset_data
+        except Exception as e:
+            print(f"  下载 {tar_filename} 失败: {e}")
+            dataset_data['files'][tar_filename] = {
+                'path': None,
+                'size': 0,
+                'url': download_url,
+                'error': str(e)
+            }
+            return dataset_data
+    else:
+        print(f"{tar_filename} 已缓存")
+
+    # 解压 package.tar.gz
+    try:
+        print(f"  解压 {tar_path} ...")
+        with tarfile.open(tar_path, 'r:gz') as tar:
+            tar.extractall(path=dataset_dir)
+        print(f"  ✅ 解压完成")
+        # 删除压缩包
+        tar_path.unlink()
+        print(f"  已删除 {tar_path}")
+    except Exception as e:
+        print(f"  解压或删除 {tar_path} 失败: {e}")
+        dataset_data['files']['extract_error'] = str(e)
+
     return dataset_data
 
 
 
-def download_dataset(config_name: str, source: str = "modelscope", proxy="", cache_dir=None):
+def download_dataset(config_name: str, source: str = None, proxy="", cache_dir=None):
     """
     下载指定的数据集。
     
     Args:
         config_name: 数据集名称
+        source: 数据源，支持 "modelscope" 或 "huggingface"，如果为None则自动根据IP位置选择
         proxy: 代理地址，空字符串表示不使用代理
+        cache_dir: 缓存目录，如果为None则使用默认目录
     Returns:
         下载结果
     """
     import os
     from pathlib import Path
+    
+    # 如果未指定数据源，自动选择
+    if source is None:
+        source = auto_select_source(proxy=proxy)
     
     # 获取数据集列表
     datasets_list = get_datasets_list(config_name)
@@ -218,13 +327,13 @@ def download_dataset(config_name: str, source: str = "modelscope", proxy="", cac
 
 
 
-def download_dataset_parallel(config_name: str, source: str = "modelscope", proxy="", cache_dir=None, max_workers: int = 5):
+def download_dataset_parallel(config_name: str, source: str = None, proxy="", cache_dir=None, max_workers: int = 5):
     """
     使用多进程并发下载指定的数据集。
     
     Args:
         config_name: 数据集名称
-        source: 数据源，支持 "modelscope" 或 "huggingface"
+        source: 数据源，支持 "modelscope" 或 "huggingface"，如果为None则自动根据IP位置选择
         proxy: 代理地址，空字符串表示不使用代理
         cache_dir: 缓存目录，如果为None则使用默认目录
         max_workers: 最大并发进程数，默认为5
@@ -236,6 +345,10 @@ def download_dataset_parallel(config_name: str, source: str = "modelscope", prox
     import multiprocessing as mp
     from pathlib import Path
     from functools import partial
+    
+    # 如果未指定数据源，自动选择
+    if source is None:
+        source = auto_select_source(proxy=proxy)
     
     # 获取数据集列表
     datasets_list = get_datasets_list(config_name)

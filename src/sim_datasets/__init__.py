@@ -8,7 +8,7 @@ and developers to efficiently access symbolic regression datasets and substantia
 their scientific modeling workflow.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 __author__ = "Ziwen Zhang, Kai Li"
 __email__ = "244824379@qq.com"
 

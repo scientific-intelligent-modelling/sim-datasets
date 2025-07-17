@@ -64,7 +64,7 @@ from sim_datasets import download_dataset_parallel
 # Concurrent download (recommended for large datasets)
 result = download_dataset_parallel(
     'llm-srbench',
-    source='huggingface',  # or 'modelscope'
+    source='huggingface',  # or 'modelscope' or None for auto-detected
     max_workers=10,        # number of concurrent workers
     proxy='http://proxy:8080'  # optional proxy
 )

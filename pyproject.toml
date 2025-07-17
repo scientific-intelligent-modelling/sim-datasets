@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sim-datasets"
-version = "0.1.0"
+version = "0.1.1"
 description = "A unified platform solution for symbolic regression, providing comprehensive support for Scientific-Intelligent-Modeling toolkits. Seamlessly integrates with ModelScope and Hugging Face for efficient dataset access."
 readme = "README.md"
 license = {text = "GPL-3.0"}
