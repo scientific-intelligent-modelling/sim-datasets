@@ -1,3 +1,42 @@
+from __future__ import annotations
+
+
+def _resolve_cache_dir(cache_dir=None):
+    """解析缓存目录，默认使用当前目录下的 .sim_datasets。"""
+    from pathlib import Path
+
+    if cache_dir is None:
+        return Path.cwd() / ".sim_datasets"
+    return Path(cache_dir)
+
+
+def _build_dataset_base_url(dataset_name: str, source: str) -> str:
+    """构造数据集目录基础 URL，并支持本地或测试环境覆盖。"""
+    import os
+
+    if source == "huggingface":
+        override = os.environ.get("SIM_DATASETS_HUGGINGFACE_BASE_URL", "").strip()
+        if override:
+            return f"{override.rstrip('/')}/{dataset_name}"
+        return f"https://huggingface.co/datasets/scientific-intelligent-modelling/sim-datasets/resolve/main/{dataset_name}"
+
+    override = os.environ.get("SIM_DATASETS_MODELSCOPE_BASE_URL", "").strip()
+    if override:
+        return f"{override.rstrip('/')}/{dataset_name}"
+    return f"https://modelscope.cn/datasets/scientific-intelligent-modelling/sim-datasets/resolve/master/{dataset_name}"
+
+
+def _build_failure_result(dataset_data: dict, tar_filename: str, download_url: str, error: str) -> dict:
+    dataset_data["success"] = False
+    dataset_data["files"][tar_filename] = {
+        "path": None,
+        "size": 0,
+        "url": download_url,
+        "error": error,
+    }
+    return dataset_data
+
+
 def check_ip_location(proxy: str = "") -> bool:
     """
     检查当前IP是否在中国大陆
@@ -167,18 +206,20 @@ def download_single_dataset(dataset_name: str, source: str = None, proxy="", cac
         'source': source,
         'files': {},
         'total_size': 0,
-        'cache_path': None
+        'cache_path': None,
+        'success': False,
     }
 
     # 创建数据集目录，保持原始目录结构
-    if cache_dir:
-        dataset_dir = cache_dir / Path(dataset_name)
-    else:
-        dataset_dir = Path.cwd() / ".sim_datasets"  / Path(dataset_name)
+    cache_dir = _resolve_cache_dir(cache_dir)
+    dataset_dir = cache_dir / Path(dataset_name)
     dataset_dir.mkdir(parents=True, exist_ok=True)
     dataset_data['cache_path'] = str(dataset_dir)
 
     tar_path = dataset_dir / tar_filename
+
+    base_url = _build_dataset_base_url(dataset_name, source)
+    download_url = f"{base_url}/{tar_filename}"
 
     # 下载 package.tar.gz
     if not tar_path.exists():
@@ -203,13 +244,7 @@ def download_single_dataset(dataset_name: str, source: str = None, proxy="", cac
                     tar_path.unlink()
                     error_msg = f"下载的文件不是有效的tar.gz格式，可能是404错误页面"
                     print(f"  ❌ {error_msg}")
-                    dataset_data['files'][tar_filename] = {
-                        'path': None,
-                        'size': 0,
-                        'url': download_url,
-                        'error': error_msg
-                    }
-                    return dataset_data
+                    return _build_failure_result(dataset_data, tar_filename, download_url, error_msg)
                 
                 dataset_data['files'][tar_filename] = {
                     'path': str(tar_path),
@@ -220,24 +255,17 @@ def download_single_dataset(dataset_name: str, source: str = None, proxy="", cac
                 print(f"  ✅ {tar_filename} 已保存到 {tar_path}")
             else:
                 print(f"  下载 {tar_filename} 失败: HTTP {response.status_code}")
-                dataset_data['files'][tar_filename] = {
-                    'path': None,
-                    'size': 0,
-                    'url': download_url,
-                    'error': f"HTTP {response.status_code}"
-                }
-                return dataset_data
+                return _build_failure_result(dataset_data, tar_filename, download_url, f"HTTP {response.status_code}")
         except Exception as e:
             print(f"  下载 {tar_filename} 失败: {e}")
-            dataset_data['files'][tar_filename] = {
-                'path': None,
-                'size': 0,
-                'url': download_url,
-                'error': str(e)
-            }
-            return dataset_data
+            return _build_failure_result(dataset_data, tar_filename, download_url, str(e))
     else:
         print(f"{tar_filename} 已缓存")
+        dataset_data['files'][tar_filename] = {
+            'path': str(tar_path),
+            'size': tar_path.stat().st_size,
+            'url': download_url,
+        }
 
     # 解压 package.tar.gz
     try:
@@ -248,9 +276,11 @@ def download_single_dataset(dataset_name: str, source: str = None, proxy="", cac
         # 删除压缩包
         tar_path.unlink()
         print(f"  已删除 {tar_path}")
+        dataset_data['success'] = True
     except Exception as e:
         print(f"  解压或删除 {tar_path} 失败: {e}")
         dataset_data['files']['extract_error'] = str(e)
+        dataset_data['success'] = False
 
     return dataset_data
 
@@ -278,8 +308,8 @@ def download_dataset(config_name: str, source: str = None, proxy="", cache_dir=N
     # 获取数据集列表
     datasets_list = get_datasets_list(config_name)
     
-    # 设置缓存目录为当前工作目录
-    cache_dir = Path.cwd() / ".sim_datasets" 
+    # 设置缓存目录
+    cache_dir = _resolve_cache_dir(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
     
     # 设置代理环境变量
@@ -302,9 +332,12 @@ def download_dataset(config_name: str, source: str = None, proxy="", cache_dir=N
         try:
             # 下载单个数据集，使用已测试的源
             result = download_single_dataset(dataset_name, source=source, proxy=proxy, cache_dir=cache_dir)
-            
-            downloaded_datasets.append(dataset_name)
-            print(f"数据集 {dataset_name} 下载完成并保存到 {result['cache_path']}")
+            if result.get("success"):
+                downloaded_datasets.append(dataset_name)
+                print(f"数据集 {dataset_name} 下载完成并保存到 {result['cache_path']}")
+            else:
+                print(f"数据集 {dataset_name} 下载失败: {result['files'].get('package.tar.gz', {}).get('error', 'unknown_error')}")
+                failed_datasets.append(dataset_name)
             
         except Exception as e:
             print(f"数据集 {dataset_name} 下载失败: {e}")
@@ -379,8 +412,12 @@ def download_dataset_parallel(config_name: str, source: str = None, proxy="", ca
             
             # 下载数据集
             result = download_single_dataset(dataset_name, source=source, proxy=proxy, cache_dir=cache_dir)
-            print(f"数据集 {dataset_name} 下载完成")
-            return {"dataset_name": dataset_name, "status": "success", "result": result, "error": None}
+            if result.get("success"):
+                print(f"数据集 {dataset_name} 下载完成")
+                return {"dataset_name": dataset_name, "status": "success", "result": result, "error": None}
+            error = result["files"].get("package.tar.gz", {}).get("error", "unknown_error")
+            print(f"数据集 {dataset_name} 下载失败: {error}")
+            return {"dataset_name": dataset_name, "status": "failed", "result": result, "error": error}
             
         except Exception as e:
             print(f"数据集 {dataset_name} 下载失败: {e}")
@@ -434,5 +471,3 @@ def download_dataset_parallel(config_name: str, source: str = None, proxy="", ca
         "failed_count": len(failed_datasets),
         "max_workers": actual_workers,
     }
-
-

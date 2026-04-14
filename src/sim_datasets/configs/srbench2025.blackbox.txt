@@ -1,0 +1,12 @@
+srbench2025/blackbox/1028_SWD
+srbench2025/blackbox/1089_USCrime
+srbench2025/blackbox/1193_BNG_lowbwt
+srbench2025/blackbox/1199_BNG_echoMonths
+srbench2025/blackbox/192_vineyard
+srbench2025/blackbox/210_cloud
+srbench2025/blackbox/522_pm10
+srbench2025/blackbox/557_analcatdata_apnea1
+srbench2025/blackbox/579_fri_c0_250_5
+srbench2025/blackbox/606_fri_c2_1000_10
+srbench2025/blackbox/650_fri_c0_500_50
+srbench2025/blackbox/678_visualizing_environmental
