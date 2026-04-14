@@ -32,6 +32,15 @@ def test_get_datasets_list_supports_srbench2025() -> None:
     assert "srbench2025/firstprinciples/first_principles_ideal_gas" in datasets
 
 
+def test_get_datasets_list_supports_classic_benchmarks() -> None:
+    datasets = utils.get_datasets_list("classic-benchmarks")
+    assert len(datasets) == 47
+    assert "classic-benchmarks/nguyen/Nguyen-1" in datasets
+    assert "classic-benchmarks/keijzer/Keijzer-15" in datasets
+    assert "classic-benchmarks/korns/Korns-12" in datasets
+    assert "classic-benchmarks/vladislavleva/Vladislavleva-8" in datasets
+
+
 def test_download_dataset_tracks_failures_and_honors_cache_dir(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(utils, "get_datasets_list", lambda _: ["ok/ds", "bad/ds"])
 

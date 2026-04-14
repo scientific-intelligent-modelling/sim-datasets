@@ -1,0 +1,12 @@
+classic-benchmarks/korns/Korns-1
+classic-benchmarks/korns/Korns-10
+classic-benchmarks/korns/Korns-11
+classic-benchmarks/korns/Korns-12
+classic-benchmarks/korns/Korns-2
+classic-benchmarks/korns/Korns-3
+classic-benchmarks/korns/Korns-4
+classic-benchmarks/korns/Korns-5
+classic-benchmarks/korns/Korns-6
+classic-benchmarks/korns/Korns-7
+classic-benchmarks/korns/Korns-8
+classic-benchmarks/korns/Korns-9
