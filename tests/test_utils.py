@@ -32,13 +32,21 @@ def test_get_datasets_list_supports_srbench2025() -> None:
     assert "srbench2025/firstprinciples/first_principles_ideal_gas" in datasets
 
 
-def test_get_datasets_list_supports_classic_benchmarks() -> None:
-    datasets = utils.get_datasets_list("classic-benchmarks")
-    assert len(datasets) == 47
-    assert "classic-benchmarks/nguyen/Nguyen-1" in datasets
-    assert "classic-benchmarks/keijzer/Keijzer-15" in datasets
-    assert "classic-benchmarks/korns/Korns-12" in datasets
-    assert "classic-benchmarks/vladislavleva/Vladislavleva-8" in datasets
+def test_get_datasets_list_supports_top_level_classic_benchmarks() -> None:
+    nguyen = utils.get_datasets_list("nguyen")
+    keijzer = utils.get_datasets_list("keijzer")
+    korns = utils.get_datasets_list("korns")
+    vladislavleva = utils.get_datasets_list("vladislavleva")
+
+    assert len(nguyen) == 12
+    assert len(keijzer) == 15
+    assert len(korns) == 12
+    assert len(vladislavleva) == 8
+
+    assert "nguyen/Nguyen-1" in nguyen
+    assert "keijzer/Keijzer-15" in keijzer
+    assert "korns/Korns-12" in korns
+    assert "vladislavleva/Vladislavleva-8" in vladislavleva
 
 
 def test_download_dataset_tracks_failures_and_honors_cache_dir(tmp_path: Path, monkeypatch) -> None:
