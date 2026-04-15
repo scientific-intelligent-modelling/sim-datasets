@@ -183,10 +183,12 @@ srbench1.0/feynman/feynman_I_18_14
 srbench1.0/feynman/feynman_I_18_4
 srbench1.0/feynman/feynman_I_24_6
 srbench1.0/feynman/feynman_I_25_13
+srbench1.0/feynman/feynman_I_26_2
 srbench1.0/feynman/feynman_I_27_6
 srbench1.0/feynman/feynman_I_29_16
 srbench1.0/feynman/feynman_I_29_4
 srbench1.0/feynman/feynman_I_30_3
+srbench1.0/feynman/feynman_I_30_5
 srbench1.0/feynman/feynman_I_32_17
 srbench1.0/feynman/feynman_I_32_5
 srbench1.0/feynman/feynman_I_34_1
@@ -213,6 +215,7 @@ srbench1.0/feynman/feynman_I_6_2b
 srbench1.0/feynman/feynman_I_8_14
 srbench1.0/feynman/feynman_I_9_18
 srbench1.0/feynman/feynman_test_1
+srbench1.0/feynman/feynman_test_10
 srbench1.0/feynman/feynman_test_11
 srbench1.0/feynman/feynman_test_12
 srbench1.0/feynman/feynman_test_13
